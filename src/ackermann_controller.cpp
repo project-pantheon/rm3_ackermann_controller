@@ -199,7 +199,7 @@ public:
         , h(1.244)
         , K1(1.f)
         , K2(6.f)
-        , K3(3.f)//0.3
+        , K3(3.f)
         , isActive(false)
         , trajectory_pts_(false)
         , trajectory_iter_(0)
@@ -260,7 +260,7 @@ private:
     {
 
         for(unsigned int iter = 0; iter < trajectory.points[0].positions.size()/3 - 1; ++iter){
-            if( ( Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y) ).norm() < 1e-1 ){
+            if( ( Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y) ).norm() < 2e-1 ){
                 trajectory_iter_++;
                 m_waypoint_msg.x = trajectory.points[0].positions[trajectory_iter_*3];
                 m_waypoint_msg.y = trajectory.points[0].positions[trajectory_iter_*3 + 1];
@@ -282,6 +282,8 @@ private:
 
             // Update values
             update_values();
+            //calculateKvalues();
+            //calculate_yaw();//r_th
 
             if( (r_p - r_p_des).norm() < 5e-2 ){
                 v = 0;
@@ -412,8 +414,20 @@ private:
         return angle;
     }
 
+    void calculate_yaw()
+    {   
+        //m_position_msg.x
+        yaw_imu = m_position_msg.z;
 
-    double estimate_bearing(nav_msgs::Odometry m_odom_msg)
+        if( (m_cmd_msg.linear.x > 0.2 && m_cmd_msg.angular.z<0.1) ){ //min distance miss
+            calculate_yaw_bearing();
+            yaw_offset=max(yaw_offset+yaw_inc, min(yaw_offset-yaw_inc,yaw_bearing-yaw_imu));
+        }
+        yaw_estimated = yaw_imu+yaw_offset;
+        r_th = yaw_estimated;
+    }
+
+    void calculate_yaw_bearing()
     {        
         /*
         %YAW ESTIMATED BEARING
@@ -421,6 +435,7 @@ private:
         left=robot.joint_states_sub.LatestMessage.Position(4);
         % right=robot.joint_states_sub.LatestMessage.Position(10);
         % left=robot.joint_states_sub.LatestMessage.Position(5);
+
         dyaw= 0.1;
         yaw_prec_estimated=robot.yaw_estimated;
         center=(0.55*right+0.45*left);
@@ -437,7 +452,8 @@ private:
         yaw_deg=rad2deg(yaw)
         pitch_deg=rad2deg(pitch)
         roll_deg=rad2deg(roll)*/
-        return 0.0;
+
+        r_th = yaw_estimated;
     }
 
     void trajectoryChanged(const trajectory_msgs::JointTrajectory::ConstPtr& msg)
@@ -473,7 +489,7 @@ private:
         case GPS_BEARING:
             {
                 //TODO
-                m_position_msg.z = estimate_bearing(m_odom_msg);
+                //m_position_msg.z = estimate_bearing(m_odom_msg);
             }
         case GPS_IMU:
             {
@@ -547,6 +563,23 @@ private:
     }
 
 
+    void calculateKvalues(){
+//        r_p <<     m_position_msg.x,
+//                   m_position_msg.y;        
+//        r_th =     m_position_msg.z;
+
+//        r_p_des << m_waypoint_msg.x,
+//                   m_waypoint_msg.y;
+//        r_th_des = m_waypoint_msg.z;
+
+        if( sqrt( pow(m_position_msg.x-m_waypoint_msg.x,2) +
+                  pow(m_position_msg.y-m_waypoint_msg.y,2) ) < 0.3){
+            K1=1.0;
+            K2=6.0;
+            K3=10.0;
+        }
+    }
+
 	
 private:
     
@@ -555,6 +588,7 @@ private:
     ros::Subscriber m_sub_imu;
     ros::Subscriber m_sub_joint_state;
     ros::Subscriber m_sub_waypoint;
+    ros::Subscriber m_sub_jointstate;
 
     ros::Publisher m_pub_cmd;
     ros::Publisher m_pub_yaw;
@@ -590,7 +624,13 @@ private:
     double e_th_des;
 
     double m_d;
-
+    
+    double yaw_estimated;
+    double yaw_offset;
+    double yaw_imu;
+    double yaw_bearing;
+    double yaw_inc;
+    
     double rho;
     double gamma;
     double delta;
