@@ -466,7 +466,7 @@ private:
         m_waypoint_msg.z = trajectory.points[0].positions[trajectory_iter_*3 + 2]; 
 
         int iter = 0;
-        while( ( Eigen::Vector2f(m_waypoint_msg.x,m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x,m_position_msg.y) ).norm() < 1e-2 ) {
+        while( ( Eigen::Vector2f(m_waypoint_msg.x,m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x,m_position_msg.y) ).norm() < 1e-1 ) {
             ++iter;
             m_waypoint_msg.x = trajectory.points[0].positions[iter*3];
             m_waypoint_msg.y = trajectory.points[0].positions[iter*3 + 1];
