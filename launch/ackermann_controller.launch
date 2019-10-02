@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+
+<launch>
+    
+    <arg name="frequency" default="20.0"/>
+    <arg name="mode" default="3"/>
+    <!-- mode:      1 encoder       -->
+    <!--            2 gps_bearing   -->
+    <!--            3 gps_imu       -->
+    <!--            4 ekf           -->
+    <!--            5 gazebo        -->
+    <arg name="odom_topic" default="default"/>
+    <arg name="imu_topic" default="/imu"/>
+    <arg name="joint_state_topic" default="/joint_states"/>
+    <arg name="waypoint_topic" default="/waypoint"/>
+    <arg name="cmd_topic" default="default"/>
+    <arg name="yaw_topic" default="/yaw_navigation"/>
+    <arg name="threshold" default="0.05"/>
+    <arg name="threshold_time" default="2.0"/>
+    <arg name="lyapunov_enable" default="true"/>
+    <arg name="error" default="0.05"/>
+
+    <!-- ackermann controller node -->
+    <node name="ackermann_controller" pkg="rm3_ackermann_controller" type="ackermann_controller" output="screen">
+        <param name="frequency" value="$(arg frequency)"/>
+        <param name="mode" value="$(arg mode)"/>
+        <param name="odom_topic" value="$(arg odom_topic)"/>
+        <param name="imu_topic" value="$(arg imu_topic)"/>
+        <param name="joint_state_topic" value="$(arg joint_state_topic)"/>
+        <param name="waypoint_topic" value="$(arg waypoint_topic)"/>
+        <param name="cmd_topic" value="$(arg cmd_topic)"/>
+        <param name="yaw_topic" value="$(arg yaw_topic)"/>
+        <param name="threshold" value="$(arg threshold)"/>
+        <param name="threshold_time" value="$(arg threshold_time)"/>
+        <param name="lyapunov_enable" value="$(arg lyapunov_enable)"/>
+        <param name="error" value="$(arg error)"/>
+    </node>
+   
+  
+</launch>
