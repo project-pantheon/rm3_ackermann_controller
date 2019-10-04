@@ -11,7 +11,7 @@
     <!--            5 gazebo        -->
     <arg name="odom_topic" default="default"/>
     <arg name="imu_topic" default="/imu"/>
-    <arg name="joint_state_topic" default="/joint_states"/>
+    <arg name="joint_state_topic" default="/sherpa/joint_states"/>
     <arg name="waypoint_topic" default="/waypoint"/>
     <arg name="cmd_topic" default="default"/>
     <arg name="yaw_topic" default="/yaw_navigation"/>
@@ -19,6 +19,8 @@
     <arg name="threshold_time" default="2.0"/>
     <arg name="lyapunov_enable" default="true"/>
     <arg name="error" default="0.05"/>
+    <arg name="history_steps" default="20"/>
+    <arg name="enable_yaw_estimation" default="true"/>
 
     <!-- ackermann controller node -->
     <node name="ackermann_controller" pkg="rm3_ackermann_controller" type="ackermann_controller" output="screen">
@@ -34,6 +36,7 @@
         <param name="threshold_time" value="$(arg threshold_time)"/>
         <param name="lyapunov_enable" value="$(arg lyapunov_enable)"/>
         <param name="error" value="$(arg error)"/>
+        <param name="enable_yaw_estimation" value="$(arg enable_yaw_estimation)"/>
     </node>
    
   
