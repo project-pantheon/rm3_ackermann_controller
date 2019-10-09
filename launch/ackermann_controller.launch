@@ -11,14 +11,14 @@
     <!--            5 gazebo        -->
     <arg name="odom_topic" default="default"/>
     <arg name="imu_topic" default="/imu"/>
-    <arg name="joint_state_topic" default="/sherpa/joint_states"/>
+    <arg name="joint_state_topic" default="default"/>
     <arg name="waypoint_topic" default="/waypoint"/>
     <arg name="cmd_topic" default="default"/>
     <arg name="yaw_topic" default="/yaw_navigation"/>
     <arg name="threshold" default="0.05"/>
     <arg name="threshold_time" default="2.0"/>
     <arg name="lyapunov_enable" default="true"/>
-    <arg name="error" default="0.05"/>
+    <arg name="error" default="0.00"/>
     <arg name="history_steps" default="20"/>
     <arg name="enable_yaw_estimation" default="true"/>
 

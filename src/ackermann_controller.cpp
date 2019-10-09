@@ -25,7 +25,7 @@
 #include <sys/stat.h>
 
 #define BEARING_LINEAR 0.49
-#define BEARING_ANGULAR 0.03
+#define BEARING_ANGULAR 0.05
 
 using namespace std;
 
@@ -37,6 +37,44 @@ enum Mode
     EKF = 4,
     GAZEBO = 5
 };
+
+
+// set default joint_state topic
+string check_joint_state_topic(Mode mode, string joint_state_topic)
+{
+    if (strcmp(joint_state_topic.c_str(), "default") == 0)
+    {
+        switch (mode)
+        {
+        case ENCODER:
+        {
+            joint_state_topic = "/base/joint_states";
+        }
+        break;
+        case GPS_BEARING:
+        {
+            joint_state_topic = "/base/joint_states";
+        }
+        break;
+        case GPS_IMU:
+        {
+            joint_state_topic = "/base/joint_states";
+        }
+        break;
+        case EKF:
+        {
+            joint_state_topic = "/base/joint_states";
+        }
+        break;
+        case GAZEBO:
+        {
+            joint_state_topic = "/sherpa/joint_states";
+        }
+        break;
+        }
+    }
+    return joint_state_topic;
+}
 
 // set default odom topic
 string check_odom_topic(Mode mode, string odom_topic)
@@ -57,7 +95,7 @@ string check_odom_topic(Mode mode, string odom_topic)
         break;
         case GPS_IMU:
         {
-            odom_topic = "/odom_gps_ekf";
+            odom_topic = "/odom_gps";
         }
         break;
         case EKF:
@@ -67,7 +105,7 @@ string check_odom_topic(Mode mode, string odom_topic)
         break;
         case GAZEBO:
         {
-            odom_topic = "/odom";
+            odom_topic = "/odom_gps";
         }
         break;
         }
@@ -104,7 +142,7 @@ string check_cmd_topic(Mode mode, string cmd_topic)
         break;
         case GAZEBO:
         {
-            cmd_topic = "/sherpa/akrm_cmd";
+            cmd_topic = "/base/base_pad/cmd_vel";
         }
         break;
         }
@@ -180,7 +218,7 @@ public:
         : m_mode(mode),
           m_sub_odom(),
           m_sub_trajectory(),
-          m_sub_imu(),
+        //   m_sub_imu(),
           m_sub_joint_state(),
           m_sub_waypoint(),
           m_sub_cmd(),
@@ -190,7 +228,7 @@ public:
           m_pub_yaw_estimated(),
           m_pub_yaw_offset(),
           m_odom_msg(),
-          m_imu_msg(),
+        //   m_imu_msg(),
           m_joint_state_msg(),
           m_yaw_msg(),
           m_waypoint_msg(),
@@ -220,7 +258,7 @@ public:
           K1(1.f),
           K2(6.f),
           K3(3.f),
-          yaw_inc(0.001),
+          yaw_inc(0.01),
           yaw_offset(0.0),
           isActive(false),
           trajectory_pts_(false),
@@ -234,7 +272,8 @@ public:
           m_history_cnt(0),
           m_enable_yaw_estimation(enable_yaw_estimation),
           calibrationActive(false),
-          offsetFixed(false)
+          offsetFixed(false),
+          m_joint_state_topic(joint_state_topic)
     {
         ros::NodeHandle nh;
 
@@ -244,16 +283,14 @@ public:
         m_sub_odom = nh.subscribe(odom_topic, 1, &Ackermann_Controller::odomChanged, this);
         m_sub_trajectory = nh.subscribe("/sherpa/trajectory_pts", 1, &Ackermann_Controller::trajectoryChanged, this);
 
-        // orientation source
-        if (m_mode == GPS_IMU)
-        {
-            // imu subscriber
-            m_sub_imu = nh.subscribe(imu_topic, 1, &Ackermann_Controller::imuChanged, this);
-        }
-        //else if(m_mode==GPS_BEARING){
-        // jointstate subscriber
+        // // orientation source
+        // if (m_mode == GPS_IMU)
+        // {
+        //     // imu subscriber
+        //     m_sub_imu = nh.subscribe(imu_topic, 1, &Ackermann_Controller::imuChanged, this);
+        // }
+
         m_sub_joint_state = nh.subscribe(joint_state_topic, 1, &Ackermann_Controller::jointStateChanged, this);
-        //}
 
         // waypoint subscriber
         m_sub_waypoint = nh.subscribe(waypoint_topic, 1, &Ackermann_Controller::waypointChanged, this);
@@ -529,8 +566,14 @@ private:
         double right, left, center, yaw_gps;
         geometry_msgs::Point position_prec;
 
-        left = m_joint_state_msg.position[2];
-        right = m_joint_state_msg.position[5];
+        if (strcmp(m_joint_state_topic.c_str(), "/sherpa/joint_states") == 0)
+        {
+            left = m_joint_state_msg.position[2];
+            right = m_joint_state_msg.position[5];
+        }else{
+            left = m_joint_state_msg.position[2];
+            right = m_joint_state_msg.position[4];
+        }
 
         position_prec = m_position_history[m_history_steps];
         center = (0.55 * right + 0.45 * left);
@@ -598,44 +641,29 @@ private:
         m_odom_msg = *msg;
         m_position_msg.x = m_odom_msg.pose.pose.position.x;
         m_position_msg.y = m_odom_msg.pose.pose.position.y;
-        switch (m_mode)
-        {
-        case GPS_BEARING:
-        {
-            //TODO
-            //m_position_msg.z = estimate_bearing(m_odom_msg);
-        }
-        case GPS_IMU:
-        {
-            //nothing
-        }
-        break;
-        default:
-        {
-            m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
-            m_position_msg.z = m_position_msg.z + m_error;
-        }
-        break;
-        }
+
+        m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
+        m_position_msg.z = m_position_msg.z + m_error;
+
     }
 
-    void imuChanged(const sensor_msgs::Imu::ConstPtr &msg)
-    {
-        m_imu_msg = *msg;
-        switch (m_mode)
-        {
-        case GPS_IMU:
-        {
-            m_position_msg.z = get_rpy(m_imu_msg.orientation).z;
-        }
-        break;
-        default:
-        {
-            //nothing
-        }
-        break;
-        }
-    }
+    // void imuChanged(const sensor_msgs::Imu::ConstPtr &msg)
+    // {
+    //     m_imu_msg = *msg;
+    //     switch (m_mode)
+    //     {
+    //     case GPS_IMU:
+    //     {
+    //         m_position_msg.z = get_rpy(m_imu_msg.orientation).z;
+    //     }
+    //     break;
+    //     default:
+    //     {
+    //         //nothing
+    //     }
+    //     break;
+    //     }
+    // }
 
     void cmdVelChanged(const geometry_msgs::Twist::ConstPtr &msg)
     {
@@ -703,7 +731,7 @@ private:
 private:
     ros::Subscriber m_sub_odom;
     ros::Subscriber m_sub_trajectory;
-    ros::Subscriber m_sub_imu;
+    // ros::Subscriber m_sub_imu;
     ros::Subscriber m_sub_joint_state;
     ros::Subscriber m_sub_waypoint;
     ros::Subscriber m_sub_jointstate;
@@ -716,7 +744,7 @@ private:
     ros::Publisher m_pub_yaw_offset;
 
     nav_msgs::Odometry m_odom_msg;
-    sensor_msgs::Imu m_imu_msg;
+    // sensor_msgs::Imu m_imu_msg;
     sensor_msgs::JointState m_joint_state_msg;
     geometry_msgs::Point m_waypoint_msg;
     trajectory_msgs::JointTrajectory trajectory;
@@ -790,6 +818,8 @@ private:
     double m_watchdog;
     double m_threshold_time;
 
+    string m_joint_state_topic;
+
     enum State
     {
         Idle = 0,
@@ -825,7 +855,8 @@ int main(int argc, char **argv)
     nh.param<string>("imu_topic", imu_topic, "/imu");
 
     string joint_state_topic;
-    nh.param<string>("joint_state_topic", joint_state_topic, "/joint_states");
+    nh.param<string>("joint_state_topic", joint_state_topic, "default");
+    joint_state_topic = check_joint_state_topic((Mode)mode, joint_state_topic);
 
     string waypoint_topic;
     nh.param<string>("waypoint_topic", waypoint_topic, "/waypoint");
