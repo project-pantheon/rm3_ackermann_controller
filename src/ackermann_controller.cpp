@@ -142,7 +142,7 @@ string check_cmd_topic(Mode mode, string cmd_topic)
         break;
         case GAZEBO:
         {
-            cmd_topic = "/base/base_pad/cmd_vel";
+            cmd_topic = "/sherpa/akrm_cmd";
         }
         break;
         }
