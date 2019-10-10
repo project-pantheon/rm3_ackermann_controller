@@ -105,7 +105,7 @@ string check_odom_topic(Mode mode, string odom_topic)
         break;
         case GAZEBO:
         {
-            odom_topic = "/odom_gps";
+            odom_topic = "/odom";
         }
         break;
         }
