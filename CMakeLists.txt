@@ -26,13 +26,13 @@ generate_messages(
 )
 
 catkin_package(
-  INCLUDE_DIRS include
+  #INCLUDE_DIRS include
   CATKIN_DEPENDS roscpp rospy message_runtime std_srvs
   DEPENDS Eigen
 )
 
 include_directories(
-  include
+  #include
   ${catkin_INCLUDE_DIRS}
   ${Eigen_INCLUDE_DIRS}
 )
