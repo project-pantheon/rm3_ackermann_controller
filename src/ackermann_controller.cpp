@@ -303,7 +303,7 @@ private:
             
         }else if(isActive){
             m_cmd_msg.linear.x = 0;
-            m_cmd_msg.angular.z= 0;
+            m_cmd_msg.angular.z = 0;
             m_pub_cmd.publish(m_cmd_msg);
         }
 
