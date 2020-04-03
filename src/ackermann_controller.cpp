@@ -105,7 +105,7 @@ string check_odom_topic(Mode mode, string odom_topic)
         break;
         case GAZEBO:
         {
-            odom_topic = "/odom";
+            odom_topic = "/odom_gps";
         }
         break;
         }
@@ -142,7 +142,7 @@ string check_cmd_topic(Mode mode, string cmd_topic)
         break;
         case GAZEBO:
         {
-            cmd_topic = "/sherpa/akrm_cmd";
+            cmd_topic = "/base/base_pad/cmd_vel";
         }
         break;
         }
