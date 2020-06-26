@@ -9,7 +9,7 @@
     <!--            3 gps_imu       -->
     <!--            4 ekf           -->
     <!--            5 gazebo        -->
-    <arg name="odom_topic" default="default"/>
+    <arg name="odom_topic" default="/ekf_localization_slam_node/slam_odom_magnetic"/>
     <arg name="imu_topic" default="/imu"/>
     <arg name="joint_state_topic" default="default"/>
     <arg name="waypoint_topic" default="/waypoint"/>
@@ -19,8 +19,8 @@
     <arg name="threshold_time" default="2.0"/>
     <arg name="lyapunov_enable" default="true"/>
     <arg name="error" default="0.00"/>
-    <arg name="history_steps" default="20"/>
-    <arg name="enable_yaw_estimation" default="true"/>
+    <arg name="history_steps" default="1"/>
+    <arg name="enable_yaw_estimation" default="false"/>
 
     <!-- ackermann controller node -->
     <node name="ackermann_controller" pkg="rm3_ackermann_controller" type="ackermann_controller" output="screen">

@@ -280,12 +280,12 @@ public:
         ROS_INFO("Ackermann Controller started");
 
         // odom subscriber
-        m_sub_odom = nh.subscribe(odom_topic, 1, &Ackermann_Controller::odomChanged, this);
+        m_sub_odom = nh.subscribe("/ekf_localization_slam_node/slam_odom_magnetic", 1, &Ackermann_Controller::odomChanged, this);
         m_sub_trajectory = nh.subscribe("/sherpa/trajectory_pts", 1, &Ackermann_Controller::trajectoryChanged, this);
 
         // // orientation source
         // if (m_mode == GPS_IMU)
-        // {
+        // {w
         //     // imu subscriber
         //     m_sub_imu = nh.subscribe(imu_topic, 1, &Ackermann_Controller::imuChanged, this);
         // }
@@ -360,14 +360,17 @@ private:
             // Update values
             update_values();
             //calculateKvalues();
+			
+			if (m_enable_yaw_estimation)
+			{
+				//add offset or generate it if calibration is enable
+				calculate_yaw_estimated();
 
-            //add offset or generate it if calibration is enable
-            calculate_yaw_estimated();
+				//use yaw_imu + offset
+				r_th = yaw_estimated;
+			}
 
-            //use yaw_imu + offset
-            r_th = yaw_estimated;
-
-            if ((r_p - r_p_des).norm() < 5e-2)
+            if ((r_p - r_p_des).norm() < 0.20)
             {
                 v = 0;
                 phi = 0;
@@ -377,7 +380,7 @@ private:
                 compute_ackermann_to_pose();
             }
 
-            m_cmd_msg.linear.x = fmax(-0.5, fmin(v, 0.5));
+            m_cmd_msg.linear.x = fmax(-0.4, fmin(v, 0.4));
             m_cmd_msg.angular.z = fmax(-1.1, fmin(phi, 1.1));
             m_pub_cmd.publish(m_cmd_msg);
 
@@ -414,6 +417,8 @@ private:
 
     void compute_ackermann_to_pose()
     {
+
+		std::cout << "current position from odom_topic: " << r_p.transpose() << " " << r_th << std::endl;
 
         //traslation
         e_p = (r_p_des - r_p);
@@ -623,7 +628,7 @@ private:
         m_waypoint_msg.z = trajectory.points[0].positions[trajectory_iter_ * 3 + 2];
 
         int iter = 0;
-        while ((Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < 1e-1)
+        while ((Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < 2e-1)
         {
             ++iter;
             m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
@@ -644,7 +649,9 @@ private:
 
         m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
         m_position_msg.z = m_position_msg.z + m_error;
-
+        
+        std::cout << "Odom set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << "\n";
+        
     }
 
     // void imuChanged(const sensor_msgs::Imu::ConstPtr &msg)
