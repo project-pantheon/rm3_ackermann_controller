@@ -3,40 +3,32 @@
 <launch>
     
     <arg name="frequency" default="20.0"/>
-    <arg name="mode" default="3"/>
-    <!-- mode:      1 encoder       -->
-    <!--            2 gps_bearing   -->
-    <!--            3 gps_imu       -->
-    <!--            4 ekf           -->
-    <!--            5 gazebo        -->
+    <arg name="cmd_topic" default="/base/base_pad/cmd_vel"/>
+    <arg name="joint_state_topic" default="/base/joint_states"/>
     <arg name="odom_topic" default="/ekf_localization_slam_node/slam_odom_magnetic"/>
-    <arg name="imu_topic" default="/imu"/>
-    <arg name="joint_state_topic" default="default"/>
-    <arg name="waypoint_topic" default="/waypoint"/>
-    <arg name="cmd_topic" default="default"/>
-    <arg name="yaw_topic" default="/yaw_navigation"/>
-    <arg name="threshold" default="0.05"/>
-    <arg name="threshold_time" default="2.0"/>
     <arg name="lyapunov_enable" default="true"/>
-    <arg name="error" default="0.00"/>
-    <arg name="history_steps" default="1"/>
-    <arg name="enable_yaw_estimation" default="false"/>
+    <arg name="lyapunov_topic" default="/lyapunov"/>
+    <arg name="trajectory_pts_topic" default="/sherpa/trajectory_pts"/>
+    <arg name="waypoint_topic" default="/waypoint"/>
+    <arg name="yaw_topic" default="/yaw_navigation"/>
+    <arg name="threshold_time" default="2.0"/>
+    <arg name="threshold_pose" default="0.20"/>
+    <arg name="threshold_trajectory" default="0.30"/> 
 
     <!-- ackermann controller node -->
     <node name="ackermann_controller" pkg="rm3_ackermann_controller" type="ackermann_controller" output="screen">
         <param name="frequency" value="$(arg frequency)"/>
-        <param name="mode" value="$(arg mode)"/>
-        <param name="odom_topic" value="$(arg odom_topic)"/>
-        <param name="imu_topic" value="$(arg imu_topic)"/>
-        <param name="joint_state_topic" value="$(arg joint_state_topic)"/>
-        <param name="waypoint_topic" value="$(arg waypoint_topic)"/>
         <param name="cmd_topic" value="$(arg cmd_topic)"/>
-        <param name="yaw_topic" value="$(arg yaw_topic)"/>
-        <param name="threshold" value="$(arg threshold)"/>
-        <param name="threshold_time" value="$(arg threshold_time)"/>
+        <param name="joint_state_topic" value="$(arg joint_state_topic)"/>
+        <param name="odom_topic" value="$(arg odom_topic)"/>
         <param name="lyapunov_enable" value="$(arg lyapunov_enable)"/>
-        <param name="error" value="$(arg error)"/>
-        <param name="enable_yaw_estimation" value="$(arg enable_yaw_estimation)"/>
+        <param name="lyapunov_topic" value="$(arg lyapunov_topic)"/>
+        <param name="trajectory_pts_topic" value="$(arg trajectory_pts_topic)"/>
+        <param name="waypoint_topic" value="$(arg waypoint_topic)"/>
+        <param name="yaw_topic" value="$(arg yaw_topic)"/>
+        <param name="threshold_time" value="$(arg threshold_time)"/>
+        <param name="threshold_pose" value="$(arg threshold_pose)"/>
+        <param name="threshold_trajectory" value="$(arg threshold_trajectory)"/>
     </node>
    
   

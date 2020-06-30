@@ -24,144 +24,7 @@
 #include <pwd.h>
 #include <sys/stat.h>
 
-#define BEARING_LINEAR 0.49
-#define BEARING_ANGULAR 0.05
-
 using namespace std;
-
-enum Mode
-{
-    ENCODER = 1,
-    GPS_BEARING = 2,
-    GPS_IMU = 3,
-    EKF = 4,
-    GAZEBO = 5
-};
-
-
-// set default joint_state topic
-string check_joint_state_topic(Mode mode, string joint_state_topic)
-{
-    if (strcmp(joint_state_topic.c_str(), "default") == 0)
-    {
-        switch (mode)
-        {
-        case ENCODER:
-        {
-            joint_state_topic = "/base/joint_states";
-        }
-        break;
-        case GPS_BEARING:
-        {
-            joint_state_topic = "/base/joint_states";
-        }
-        break;
-        case GPS_IMU:
-        {
-            joint_state_topic = "/base/joint_states";
-        }
-        break;
-        case EKF:
-        {
-            joint_state_topic = "/base/joint_states";
-        }
-        break;
-        case GAZEBO:
-        {
-            joint_state_topic = "/sherpa/joint_states";
-        }
-        break;
-        }
-    }
-    return joint_state_topic;
-}
-
-// set default odom topic
-string check_odom_topic(Mode mode, string odom_topic)
-{
-    if (strcmp(odom_topic.c_str(), "default") == 0)
-    {
-        switch (mode)
-        {
-        case ENCODER:
-        {
-            odom_topic = "/base/odom";
-        }
-        break;
-        case GPS_BEARING:
-        {
-            odom_topic = "/gps";
-        }
-        break;
-        case GPS_IMU:
-        {
-            odom_topic = "/odom_gps";
-        }
-        break;
-        case EKF:
-        {
-            odom_topic = "/odom";
-        }
-        break;
-        case GAZEBO:
-        {
-            odom_topic = "/odom_gps";
-        }
-        break;
-        }
-    }
-    return odom_topic;
-}
-
-// set default cmd topic
-string check_cmd_topic(Mode mode, string cmd_topic)
-{
-    if (strcmp(cmd_topic.c_str(), "default") == 0)
-    {
-        switch (mode)
-        {
-        case ENCODER:
-        {
-            cmd_topic = "/base/base_pad/cmd_vel";
-        }
-        break;
-        case GPS_BEARING:
-        {
-            cmd_topic = "/base/base_pad/cmd_vel";
-        }
-        break;
-        case GPS_IMU:
-        {
-            cmd_topic = "/base/base_pad/cmd_vel";
-        }
-        break;
-        case EKF:
-        {
-            cmd_topic = "/base/base_pad/cmd_vel";
-        }
-        break;
-        case GAZEBO:
-        {
-            cmd_topic = "/base/base_pad/cmd_vel";
-        }
-        break;
-        }
-    }
-    return cmd_topic;
-}
-
-// Get time
-string get_time()
-{
-    time_t t = time(nullptr);
-    auto tm = *localtime(&t);
-
-    ostringstream oss;
-    oss << put_time(&tm, "%Y-%m-%d_%H-%M-%S");
-    auto str = oss.str();
-
-    return str;
-}
 
 // Get roll, pitch and yaw
 geometry_msgs::Point get_rpy(geometry_msgs::Quaternion quat)
@@ -190,55 +53,40 @@ int sgn(T val)
     return (T(0) < val) - (val < T(0));
 }
 
-// Get home directory
-std::string get_homeDirectory()
-{
-    struct passwd *pw = getpwuid(getuid());
-    return pw->pw_dir;
-}
 
 class Ackermann_Controller
 {
 
 public:
-    Ackermann_Controller(Mode mode,
-                         const string &odom_topic,
-                         const string &imu_topic,
-                         const string &joint_state_topic,
-                         const string &waypoint_topic,
-                         const string &cmd_topic,
-                         const string &yaw_topic,
-                         double threshold,
-                         double threshold_time,
-                         bool lyapunov_enable,
-                         double error,
-                         int history_steps,
-                         bool enable_yaw_estimation,
-                         const ros::NodeHandle &n)
-        : m_mode(mode),
-          m_sub_odom(),
+
+    Ackermann_Controller(   const string &cmd_topic,
+                            const string &joint_state_topic,
+                            const string &odom_topic,
+                            bool lyapunov_enable,
+                            const string &lyapunov_topic,
+                            const string &trajectory_pts_topic,
+                            const string &waypoint_topic,
+                            const string &yaw_topic,
+                            double threshold_time,
+                            double threshold_pose,
+                            double threshold_trajectory,
+                            const ros::NodeHandle &n)
+        : m_sub_odom(),
           m_sub_trajectory(),
-        //   m_sub_imu(),
           m_sub_joint_state(),
           m_sub_waypoint(),
           m_sub_cmd(),
           m_pub_cmd(),
           m_pub_yaw(),
           m_pub_lyapunov(),
-          m_pub_yaw_estimated(),
-          m_pub_yaw_offset(),
           m_odom_msg(),
-        //   m_imu_msg(),
           m_joint_state_msg(),
           m_yaw_msg(),
           m_waypoint_msg(),
           m_cmd_msg(),
           m_position_msg(),
           m_serviceSet(),
-          m_serviceCalibration(),
-          m_serviceFixOffset(),
           m_serviceActivate(),
-          m_threshold(threshold),
           r_p(2),
           e_p(2),
           e_p_sat(2),
@@ -258,21 +106,15 @@ public:
           K1(1.f),
           K2(6.f),
           K3(3.f),
-          yaw_inc(0.01),
-          yaw_offset(0.0),
           isActive(false),
           trajectory_pts_(false),
           trajectory_iter_(0),
           m_watchdog(ros::Time::now().toSec()),
           m_threshold_time(threshold_time),
+          m_threshold_pose(threshold_pose),
+          m_threshold_trajectory(threshold_trajectory),
           m_state(Idle),
           m_lyapunov_enable(lyapunov_enable),
-          m_error(error),
-          m_history_steps(history_steps),
-          m_history_cnt(0),
-          m_enable_yaw_estimation(enable_yaw_estimation),
-          calibrationActive(false),
-          offsetFixed(false),
           m_joint_state_topic(joint_state_topic)
     {
         ros::NodeHandle nh;
@@ -280,16 +122,10 @@ public:
         ROS_INFO("Ackermann Controller started");
 
         // odom subscriber
-        m_sub_odom = nh.subscribe("/ekf_localization_slam_node/slam_odom_magnetic", 1, &Ackermann_Controller::odomChanged, this);
-        m_sub_trajectory = nh.subscribe("/sherpa/trajectory_pts", 1, &Ackermann_Controller::trajectoryChanged, this);
+        m_sub_odom = nh.subscribe(odom_topic, 1, &Ackermann_Controller::odomChanged, this);
+        m_sub_trajectory = nh.subscribe(trajectory_pts_topic, 1, &Ackermann_Controller::trajectoryChanged, this);
 
-        // // orientation source
-        // if (m_mode == GPS_IMU)
-        // {w
-        //     // imu subscriber
-        //     m_sub_imu = nh.subscribe(imu_topic, 1, &Ackermann_Controller::imuChanged, this);
-        // }
-
+        // joint_state subscriber
         m_sub_joint_state = nh.subscribe(joint_state_topic, 1, &Ackermann_Controller::jointStateChanged, this);
 
         // waypoint subscriber
@@ -306,22 +142,15 @@ public:
 
         // set K values service
         m_serviceSet = nh.advertiseService("set_k", &Ackermann_Controller::setKvalues, this);
-        m_serviceCalibration = nh.advertiseService("calibration_controller", &Ackermann_Controller::calibration, this);
-        m_serviceFixOffset = nh.advertiseService("fix_offset_controller", &Ackermann_Controller::fixOffset, this);
 
         m_serviceActivate = nh.advertiseService("activate_controller", &Ackermann_Controller::activateController, this);
 
         if (m_lyapunov_enable)
         {
             // lyapunov publisher
-            m_pub_lyapunov = nh.advertise<std_msgs::Float32>("/lyapunov", 1);
+            m_pub_lyapunov = nh.advertise<std_msgs::Float32>(lyapunov_topic, 1);
         }
 
-        if (m_enable_yaw_estimation)
-        {
-            m_pub_yaw_estimated = nh.advertise<std_msgs::Float64>("/yaw_estimated", 1);
-            m_pub_yaw_offset = nh.advertise<std_msgs::Float64>("/yaw_offset", 1);
-        }
     }
 
     void run(double frequency)
@@ -332,45 +161,22 @@ public:
     }
 
 private:
-    void updateTrajectoryWaypoint()
-    {
-
-        for (unsigned int iter = 0; iter < trajectory.points[0].positions.size() / 3 - 1; ++iter)
-        {
-            if ((Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < 2e-1)
-            {
-                trajectory_iter_++;
-                m_waypoint_msg.x = trajectory.points[0].positions[trajectory_iter_ * 3];
-                m_waypoint_msg.y = trajectory.points[0].positions[trajectory_iter_ * 3 + 1];
-                m_waypoint_msg.z = trajectory.points[0].positions[trajectory_iter_ * 3 + 2];
-                std::cout << "Waypoint set to: " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << "\n";
-            }
-        }
-    }
 
     void iteration(const ros::TimerEvent &e)
     {
+//        ROS_INFO("isActive: %d",isActive);
+//        ROS_INFO("ros::Time::now().toSec(): %f",ros::Time::now().toSec());
+//        ROS_INFO("m_watchdog: %f",m_watchdog);
+//        ROS_INFO("m_threshold_time: %f", m_threshold_time);
+//        ROS_INFO("time-watch: %f", ros::Time::now().toSec() - m_watchdog);
+        
         // Disable the publication of useless command velocity, and publish one time the final lyapunov
         if (ros::Time::now().toSec() - m_watchdog < m_threshold_time && isActive)
         {
 
-            //if(trajectory_pts_)
-            //    updateTrajectoryWaypoint();
-
-            // Update values
             update_values();
-            //calculateKvalues();
-			
-			if (m_enable_yaw_estimation)
-			{
-				//add offset or generate it if calibration is enable
-				calculate_yaw_estimated();
 
-				//use yaw_imu + offset
-				r_th = yaw_estimated;
-			}
-
-            if ((r_p - r_p_des).norm() < 0.20)
+            if ((r_p - r_p_des).norm() < m_threshold_pose)
             {
                 v = 0;
                 phi = 0;
@@ -390,17 +196,13 @@ private:
                 m_pub_lyapunov.publish(m_lyapunov_msg);
             }
         }
-        else if (isActive && !calibrationActive)
+        else if (isActive)
         {
             m_cmd_msg.linear.x = 0;
             m_cmd_msg.angular.z = 0;
             m_pub_cmd.publish(m_cmd_msg);
         }
-        else if (calibrationActive)
-        {
-            update_values();
-            calculate_yaw_estimated();
-        }
+        
     }
 
     void calculate_lyapunov()
@@ -418,7 +220,7 @@ private:
     void compute_ackermann_to_pose()
     {
 
-		std::cout << "current position from odom_topic: " << r_p.transpose() << " " << r_th << std::endl;
+		//std::cout << "current position from odom_topic: " << r_p.transpose() << " " << r_th << std::endl;
 
         //traslation
         e_p = (r_p_des - r_p);
@@ -497,38 +299,6 @@ private:
             m_waypoint_msg.y;
         r_th_des = m_waypoint_msg.z;
 
-        if (calibrationActive)
-            update_history();
-    }
-
-    void update_history()
-    {
-        if (check_vel_for_bearing())
-        {
-            //check if the queue is full
-            if (m_history_cnt < m_history_steps)
-            {
-                m_history_cnt++;
-            }
-            else
-            {
-                //remove the first position
-                m_position_history.erase(m_position_history.begin(), m_position_history.begin() + 1);
-            }
-            //add last position
-            m_position_history.push_back(m_position_msg);
-        }
-        else
-        {
-            m_position_history.clear();
-            m_history_cnt = 0;
-        }
-    }
-
-    bool check_vel_for_bearing()
-    {
-        //straight line
-        return (abs(m_cmd_recived_msg.linear.x) > BEARING_LINEAR && abs(m_cmd_recived_msg.angular.z) < BEARING_ANGULAR);
     }
 
     double check_angle(double angle)
@@ -550,73 +320,6 @@ private:
         return angle;
     }
 
-    void calculate_yaw_estimated()
-    {
-        yaw_imu = m_position_msg.z;
-        if (calibrationActive && !offsetFixed && m_history_cnt == m_history_steps)
-        {
-            calculate_yaw_bearing();
-            yaw_offset = max(yaw_offset - yaw_inc, min(yaw_offset + yaw_inc, yaw_bearing - yaw_imu));
-        }
-        yaw_estimated = yaw_imu + yaw_offset;
-
-        m_yaw_estimated_msg.data = yaw_estimated;
-        m_yaw_offset_msg.data = yaw_offset;
-        m_pub_yaw_estimated.publish(m_yaw_estimated_msg);
-        m_pub_yaw_offset.publish(m_yaw_offset_msg);
-    }
-
-    void calculate_yaw_bearing()
-    {
-        double right, left, center, yaw_gps;
-        geometry_msgs::Point position_prec;
-
-        if (strcmp(m_joint_state_topic.c_str(), "/sherpa/joint_states") == 0)
-        {
-            left = m_joint_state_msg.position[2];
-            right = m_joint_state_msg.position[5];
-        }else{
-            left = m_joint_state_msg.position[2];
-            right = m_joint_state_msg.position[4];
-        }
-
-        position_prec = m_position_history[m_history_steps];
-        center = (0.55 * right + 0.45 * left);
-        yaw_gps = atan2((m_position_msg.y - position_prec.y), (m_position_msg.x - position_prec.x));
-        yaw_estimated = max(yaw_estimated - yaw_inc, min(yaw_estimated + yaw_inc, yaw_gps - center));
-    }
-
-    // calibration on/off
-    bool calibration(
-        std_srvs::Empty::Request &req,
-        std_srvs::Empty::Response &res)
-    {
-        if (!offsetFixed)
-        {
-            calibrationActive = !calibrationActive;
-            ROS_INFO("calibration %s", calibrationActive ? "active" : "not active");
-        }
-        else
-        {
-            ROS_INFO("This action required a not fixed offset");
-        }
-        return 1;
-    }
-
-    // fix_offset
-    bool fixOffset(
-        std_srvs::Empty::Request &req,
-        std_srvs::Empty::Response &res)
-    {
-        offsetFixed = !offsetFixed;
-        if (offsetFixed)
-        {
-            calibrationActive = false;
-            ROS_INFO("calibration not active");
-        }
-        ROS_INFO("offset %s", offsetFixed ? "fixed" : "not fixed");
-        return 1;
-    }
 
     void trajectoryChanged(const trajectory_msgs::JointTrajectory::ConstPtr &msg)
     {
@@ -628,7 +331,7 @@ private:
         m_waypoint_msg.z = trajectory.points[0].positions[trajectory_iter_ * 3 + 2];
 
         int iter = 0;
-        while ((Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < 2e-1)
+        while ((Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < m_threshold_trajectory)
         {
             ++iter;
             m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
@@ -638,7 +341,7 @@ private:
 
         m_watchdog = ros::Time::now().toSec();
         trajectory_pts_ = true;
-        std::cout << "Waypoint set to: " << iter << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << "\n";
+        //std::cout << "Waypoint set to: " << iter << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
     }
 
     void odomChanged(const nav_msgs::Odometry::ConstPtr &msg)
@@ -648,29 +351,11 @@ private:
         m_position_msg.y = m_odom_msg.pose.pose.position.y;
 
         m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
-        m_position_msg.z = m_position_msg.z + m_error;
         
-        std::cout << "Odom set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << "\n";
+        //std::cout << "Odom set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
         
     }
 
-    // void imuChanged(const sensor_msgs::Imu::ConstPtr &msg)
-    // {
-    //     m_imu_msg = *msg;
-    //     switch (m_mode)
-    //     {
-    //     case GPS_IMU:
-    //     {
-    //         m_position_msg.z = get_rpy(m_imu_msg.orientation).z;
-    //     }
-    //     break;
-    //     default:
-    //     {
-    //         //nothing
-    //     }
-    //     break;
-    //     }
-    // }
 
     void cmdVelChanged(const geometry_msgs::Twist::ConstPtr &msg)
     {
@@ -686,16 +371,17 @@ private:
     {
         m_waypoint_msg = *msg;
         m_watchdog = ros::Time::now().toSec();
+
+        //std::cout << "Waypoint set to: " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
     }
 
     bool setKvalues(rm3_ackermann_controller::SetKvalues::Request &req,
                     rm3_ackermann_controller::SetKvalues::Response &res)
     {
-
         K1 = req.k1;
         K2 = req.k2;
         K3 = req.k3;
-        res.result = "Succesfully Called setKvalues service!\n";
+        res.result = "Succesfully Called setKvalues service!";
         printf("\nAckermann_Controller: k1=%f,k2=%f,k3=%f\n", req.k1, req.k2, req.k3);
 
         return true;
@@ -704,9 +390,8 @@ private:
     bool activateController(rm3_ackermann_controller::ActivateController::Request &req,
                             rm3_ackermann_controller::ActivateController::Response &res)
     {
-
         isActive = req.is_active;
-        res.result = "Succesfully Called ActivateController service!\n";
+        res.result = "Succesfully Called ActivateController service!";
 
         if (isActive)
             printf("\nAckermann_Controller is ACTIVE\n");
@@ -716,29 +401,20 @@ private:
         return true;
     }
 
-    void calculateKvalues()
-    {
-        //        r_p <<     m_position_msg.x,
-        //                   m_position_msg.y;
-        //        r_th =     m_position_msg.z;
-
-        //        r_p_des << m_waypoint_msg.x,
-        //                   m_waypoint_msg.y;
-        //        r_th_des = m_waypoint_msg.z;
-
-        if (sqrt(pow(m_position_msg.x - m_waypoint_msg.x, 2) +
-                 pow(m_position_msg.y - m_waypoint_msg.y, 2)) < 0.3)
-        {
-            K1 = 1.0;
-            K2 = 6.0;
-            K3 = 3.0;
-        }
-    }
+//    void calculateKvalues()
+//    {
+//        if (sqrt(pow(m_position_msg.x - m_waypoint_msg.x, 2) +
+//                 pow(m_position_msg.y - m_waypoint_msg.y, 2)) < 0.3)
+//        {
+//            K1 = 1.0;
+//            K2 = 6.0;
+//            K3 = 3.0;
+//        }
+//    }
 
 private:
     ros::Subscriber m_sub_odom;
     ros::Subscriber m_sub_trajectory;
-    // ros::Subscriber m_sub_imu;
     ros::Subscriber m_sub_joint_state;
     ros::Subscriber m_sub_waypoint;
     ros::Subscriber m_sub_jointstate;
@@ -747,11 +423,8 @@ private:
     ros::Publisher m_pub_cmd;
     ros::Publisher m_pub_yaw;
     ros::Publisher m_pub_lyapunov;
-    ros::Publisher m_pub_yaw_estimated;
-    ros::Publisher m_pub_yaw_offset;
 
     nav_msgs::Odometry m_odom_msg;
-    // sensor_msgs::Imu m_imu_msg;
     sensor_msgs::JointState m_joint_state_msg;
     geometry_msgs::Point m_waypoint_msg;
     trajectory_msgs::JointTrajectory trajectory;
@@ -760,16 +433,11 @@ private:
     geometry_msgs::Twist m_cmd_msg;
     std_msgs::Float64 m_yaw_msg;
     std_msgs::Float32 m_lyapunov_msg;
-    std_msgs::Float64 m_yaw_estimated_msg;
-    std_msgs::Float64 m_yaw_offset_msg;
 
     geometry_msgs::Point m_position_msg;
-    std::vector<geometry_msgs::Point> m_position_history;
 
     ros::ServiceServer m_serviceSet;
     ros::ServiceServer m_serviceActivate;
-    ros::ServiceServer m_serviceCalibration;
-    ros::ServiceServer m_serviceFixOffset;
 
     Eigen::VectorXd r_p;     //x(2);
     Eigen::VectorXd r_p_des; //x_des(2);
@@ -810,17 +478,10 @@ private:
     bool trajectory_pts_;
     int trajectory_iter_;
 
-    double m_threshold;
+    double m_threshold_pose;
+    double m_threshold_trajectory;
 
     bool m_lyapunov_enable;
-
-    double m_error;
-
-    int m_history_cnt;
-    int m_history_steps;
-    bool m_enable_yaw_estimation;
-    bool calibrationActive;
-    bool offsetFixed;
 
     double m_watchdog;
     double m_threshold_time;
@@ -833,7 +494,7 @@ private:
         Moving_to_waypoint = 1
     };
     State m_state;
-    Mode m_mode;
+
 };
 
 int main(int argc, char **argv)
@@ -844,69 +505,51 @@ int main(int argc, char **argv)
     double frequency;
     nh.param("frequency", frequency, 20.0);
 
-    int mode;
-    nh.param("mode", mode, 5);
-    //REAL:{ENCODER, GPS_BEARING, GPS_IMU, EKF}
-    //GAZEBO:{GAZEBO}
-    //mode:   1 encoder
-    //        2 gps_bearing
-    //        3 gps_imu
-    //        4 ekf
-    //        5 gazebo
-
-    string odom_topic;
-    nh.param<string>("odom_topic", odom_topic, "default");
-    odom_topic = check_odom_topic((Mode)mode, odom_topic);
-
-    string imu_topic;
-    nh.param<string>("imu_topic", imu_topic, "/imu");
+    string cmd_topic;
+    nh.param<string>("cmd_topic", cmd_topic, "/base/base_pad/cmd_vel");
 
     string joint_state_topic;
-    nh.param<string>("joint_state_topic", joint_state_topic, "default");
-    joint_state_topic = check_joint_state_topic((Mode)mode, joint_state_topic);
+    nh.param<string>("joint_state_topic", joint_state_topic, "/base/joint_states");
 
-    string waypoint_topic;
-    nh.param<string>("waypoint_topic", waypoint_topic, "/waypoint");
-
-    string cmd_topic;
-    nh.param<string>("cmd_topic", cmd_topic, "default");
-    cmd_topic = check_cmd_topic((Mode)mode, cmd_topic);
-
-    string yaw_topic;
-    nh.param<string>("yaw_topic", yaw_topic, "/yaw_navigation"); // to evaluate check parameters
-
-    double threshold;
-    nh.param("threshold", threshold, 0.05);
-
-    double threshold_time;
-    nh.param("threshold_time", threshold_time, 2.0);
+    string odom_topic;
+    nh.param<string>("odom_topic", odom_topic, "/ekf_localization_slam_node/slam_odom_magnetic");
 
     bool lyapunov_enable;
     nh.param("lyapunov_enable", lyapunov_enable, false);
 
-    double error;
-    nh.param("error", error, 0.0);
+    string lyapunov_topic;
+    nh.param<string>("lyapunov_topic", lyapunov_topic, "/lyapunov");
 
-    int history_steps;
-    nh.param("history_steps", history_steps, 20);
+    string trajectory_pts_topic;
+    nh.param<string>("trajectory_pts_topic", trajectory_pts_topic, "/sherpa/trajectory_pts");
 
-    bool enable_yaw_estimation;
-    nh.param("enable_yaw_estimation", enable_yaw_estimation, false);
+    string waypoint_topic;
+    nh.param<string>("waypoint_topic", waypoint_topic, "/waypoint");
 
-    Ackermann_Controller ackermann_controller((Mode)mode,
-                                              odom_topic,
-                                              imu_topic,
-                                              joint_state_topic,
-                                              waypoint_topic,
-                                              cmd_topic,
-                                              yaw_topic,
-                                              threshold,
-                                              threshold_time,
-                                              lyapunov_enable,
-                                              error,
-                                              history_steps,
-                                              enable_yaw_estimation,
-                                              nh);
+    string yaw_topic;
+    nh.param<string>("yaw_topic", yaw_topic, "/yaw_navigation");
+
+    double threshold_time;
+    nh.param("threshold_time", threshold_time, 2.0);
+
+    double threshold_pose;
+    nh.param("threshold_pose", threshold_pose, 0.20);
+
+    double threshold_trajectory;
+    nh.param("threshold_trajectory", threshold_trajectory, 0.30);
+
+    Ackermann_Controller ackermann_controller(  cmd_topic,
+                                                joint_state_topic,
+                                                odom_topic,
+                                                lyapunov_enable,
+                                                lyapunov_topic,
+                                                trajectory_pts_topic,
+                                                waypoint_topic,
+                                                yaw_topic,
+                                                threshold_time,
+                                                threshold_pose,
+                                                threshold_trajectory,
+                                                nh);
     ackermann_controller.run(frequency);
 
     return 0;

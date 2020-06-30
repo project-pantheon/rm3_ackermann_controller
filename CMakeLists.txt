@@ -18,7 +18,6 @@ add_service_files(
    FILES
    SetKvalues.srv
    ActivateController.srv
-   GetTree.srv
 )
 
 generate_messages(
@@ -48,16 +47,4 @@ target_link_libraries(ackermann_controller
   ${catkin_LIBRARIES}
   ${Eigen_LIBRARIES}
 )
-
-
-add_executable(tree_manager src/tree_manager.cpp)
-
-target_link_libraries(tree_manager
-  ${catkin_LIBRARIES}
-  ${Eigen_LIBRARIES}
-)
-
-
-
-
 
