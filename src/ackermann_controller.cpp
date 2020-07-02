@@ -107,7 +107,6 @@ public:
           K2(6.f),
           K3(3.f),
           isActive(false),
-          trajectory_pts_(false),
           trajectory_iter_(0),
           m_watchdog(ros::Time::now().toSec()),
           m_threshold_time(threshold_time),
@@ -341,7 +340,7 @@ private:
 
         m_watchdog = ros::Time::now().toSec();
 
-        //std::cout << "Waypoint set to: " << iter << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
+        std::cout << "Waypoint set to: " << iter << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
     }
 
     void odomChanged(const nav_msgs::Odometry::ConstPtr &msg)
@@ -352,7 +351,7 @@ private:
 
         m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
         
-        //std::cout << "Odom set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
+        std::cout << "Odom set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
         
     }
 
