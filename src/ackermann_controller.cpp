@@ -70,12 +70,15 @@ public:
                             double threshold_time,
                             double threshold_pose,
                             double threshold_trajectory,
+                            double threshold_trajectory_near_waypoint,
+                            bool dynamic_trajectory_enable,
                             const ros::NodeHandle &n)
         : m_sub_odom(),
           m_sub_trajectory(),
           m_sub_joint_state(),
           m_sub_waypoint(),
           m_sub_cmd(),
+          m_sub_command_pose(),
           m_pub_cmd(),
           m_pub_yaw(),
           m_pub_lyapunov(),
@@ -112,6 +115,8 @@ public:
           m_threshold_time(threshold_time),
           m_threshold_pose(threshold_pose),
           m_threshold_trajectory(threshold_trajectory),
+          m_threshold_trajectory_near_waypoint(threshold_trajectory_near_waypoint),
+          m_dynamic_trajectory_enable(dynamic_trajectory_enable),
           m_state(Idle),
           m_lyapunov_enable(lyapunov_enable),
           m_joint_state_topic(joint_state_topic)
@@ -132,6 +137,9 @@ public:
 
         // cmd_vel subscriber
         m_sub_cmd = nh.subscribe(cmd_topic, 1, &Ackermann_Controller::cmdVelChanged, this);
+
+        // command_pose subscriber
+        m_sub_command_pose = nh.subscribe("/command/pose", 1, &Ackermann_Controller::commandPoseChanged, this);
 
         // cmd_vel publisher
         m_pub_cmd = nh.advertise<geometry_msgs::Twist>(cmd_topic, 1);
@@ -319,6 +327,15 @@ private:
         return angle;
     }
 
+    void calculateTrajectoryDistances()
+    {
+//        trajectoy_distances = 
+//        Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm()
+//        m_waypoint_msg.x = trajectory.points[0].positions[trajectory_iter_ * 3];
+//        m_waypoint_msg.y = trajectory.points[0].positions[trajectory_iter_ * 3 + 1];
+//        m_waypoint_msg.z = trajectory.points[0].positions[trajectory_iter_ * 3 + 2];
+    }   
+
 
     void trajectoryChanged(const trajectory_msgs::JointTrajectory::ConstPtr &msg)
     {
@@ -338,9 +355,23 @@ private:
             m_waypoint_msg.z = trajectory.points[0].positions[iter * 3 + 2];
         }
 
+        if((Eigen::Vector2f(m_command_pose_recived_msg.pose.pose.position.x, m_command_pose_recived_msg.pose.pose.position.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < m_threshold_trajectory_near_waypoint){
+
+            m_waypoint_msg.x = m_command_pose_recived_msg.pose.pose.position.x;
+            m_waypoint_msg.y = m_command_pose_recived_msg.pose.pose.position.y;
+            m_waypoint_msg.z = get_rpy(m_command_pose_recived_msg.pose.pose.orientation).z;
+        }
+
         m_watchdog = ros::Time::now().toSec();
 
         std::cout << "Waypoint set to: " << iter << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
+
+        std::cout << "Error(x,y,yaw): " << m_waypoint_msg.x-m_position_msg.x << " " << m_waypoint_msg.y-m_position_msg.y << " " << m_waypoint_msg.z-m_position_msg.z << std::endl;
+
+        std::cout << "Error(Norm): " << (Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() << " " << m_threshold_trajectory << std::endl;
+
+        std::cout << "Error-threshold: " << (Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() - m_threshold_trajectory << std::endl;        
+
     }
 
     void odomChanged(const nav_msgs::Odometry::ConstPtr &msg)
@@ -351,13 +382,18 @@ private:
 
         m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
         
-        std::cout << "Odom set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
+        std::cout << "Odometry set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
         
     }
 
     void cmdVelChanged(const geometry_msgs::Twist::ConstPtr &msg)
     {
         m_cmd_recived_msg = *msg;
+    }
+
+    void commandPoseChanged(const nav_msgs::Odometry::ConstPtr &msg)
+    {
+        m_command_pose_recived_msg = *msg;
     }
 
     void jointStateChanged(const sensor_msgs::JointState::ConstPtr &msg)
@@ -406,6 +442,7 @@ private:
     ros::Subscriber m_sub_waypoint;
     ros::Subscriber m_sub_jointstate;
     ros::Subscriber m_sub_cmd;
+    ros::Subscriber m_sub_command_pose;
 
     ros::Publisher m_pub_cmd;
     ros::Publisher m_pub_yaw;
@@ -418,6 +455,7 @@ private:
 
     geometry_msgs::Twist m_cmd_recived_msg;
     geometry_msgs::Twist m_cmd_msg;
+    nav_msgs::Odometry m_command_pose_recived_msg;
     std_msgs::Float64 m_yaw_msg;
     std_msgs::Float32 m_lyapunov_msg;
 
@@ -466,6 +504,11 @@ private:
 
     double m_threshold_pose;
     double m_threshold_trajectory;
+
+    double m_threshold_trajectory_near_waypoint;
+    bool m_dynamic_trajectory_enable;
+
+    Eigen::VectorXd trajectoy_distances;
 
     bool m_lyapunov_enable;
 
@@ -524,6 +567,12 @@ int main(int argc, char **argv)
     double threshold_trajectory;
     nh.param("threshold_trajectory", threshold_trajectory, 0.30);
 
+    double threshold_trajectory_near_waypoint;
+    nh.param("threshold_trajectory_near_waypoint", threshold_trajectory_near_waypoint, 0.35);
+
+    bool dynamic_trajectory_enable;
+    nh.param("dynamic_trajectory_enable", dynamic_trajectory_enable, false);
+
     Ackermann_Controller ackermann_controller(  cmd_topic,
                                                 joint_state_topic,
                                                 odom_topic,
@@ -535,6 +584,8 @@ int main(int argc, char **argv)
                                                 threshold_time,
                                                 threshold_pose,
                                                 threshold_trajectory,
+                                                threshold_trajectory_near_waypoint,
+                                                dynamic_trajectory_enable,
                                                 nh);
     ackermann_controller.run(frequency);
 

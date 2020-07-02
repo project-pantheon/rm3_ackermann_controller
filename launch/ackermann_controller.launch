@@ -13,7 +13,9 @@
     <arg name="yaw_topic" default="/yaw_navigation"/>
     <arg name="threshold_time" default="2.0"/>
     <arg name="threshold_pose" default="0.20"/>
-    <arg name="threshold_trajectory" default="0.30"/> 
+    <arg name="threshold_trajectory" default="0.30"/>
+    <arg name="threshold_trajectory_near_waypoint" default="0.35"/>
+    <arg name="dynamic_trajectory_enable" default="true"/>
 
     <!-- ackermann controller node -->
     <node name="ackermann_controller" pkg="rm3_ackermann_controller" type="ackermann_controller" output="screen">
@@ -29,6 +31,8 @@
         <param name="threshold_time" value="$(arg threshold_time)"/>
         <param name="threshold_pose" value="$(arg threshold_pose)"/>
         <param name="threshold_trajectory" value="$(arg threshold_trajectory)"/>
+        <param name="threshold_trajectory_near_waypoint" value="$(arg threshold_trajectory_near_waypoint)"/>
+        <param name="dynamic_trajectory_enable" value="$(arg dynamic_trajectory_enable)"/>
     </node>
    
   
