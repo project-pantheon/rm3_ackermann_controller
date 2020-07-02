@@ -340,7 +340,7 @@ private:
         }
 
         m_watchdog = ros::Time::now().toSec();
-        trajectory_pts_ = true;
+
         //std::cout << "Waypoint set to: " << iter << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
     }
 
@@ -355,7 +355,6 @@ private:
         //std::cout << "Odom set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
         
     }
-
 
     void cmdVelChanged(const geometry_msgs::Twist::ConstPtr &msg)
     {
@@ -400,17 +399,6 @@ private:
 
         return true;
     }
-
-//    void calculateKvalues()
-//    {
-//        if (sqrt(pow(m_position_msg.x - m_waypoint_msg.x, 2) +
-//                 pow(m_position_msg.y - m_waypoint_msg.y, 2)) < 0.3)
-//        {
-//            K1 = 1.0;
-//            K2 = 6.0;
-//            K3 = 3.0;
-//        }
-//    }
 
 private:
     ros::Subscriber m_sub_odom;
@@ -475,7 +463,6 @@ private:
     double V2;
     double V3;
     bool isActive;
-    bool trajectory_pts_;
     int trajectory_iter_;
 
     double m_threshold_pose;
