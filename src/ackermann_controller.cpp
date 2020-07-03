@@ -380,9 +380,12 @@ private:
 
 
         bool waypoint_found=false;
+        float traj_dist = trajectoy_distances[trajectoy_distances.size()-1] * m_threshold_trajectory;
+
+
         for (iter=1; iter<trajectoy_distances.size(); iter++){
             if (!waypoint_found && // check to set only the first waypoint
-                trajectoy_distances(iter) > m_threshold_pose*(1+m_threshold_trajectory)){
+                trajectoy_distances(iter) > traj_dist){
                 m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
                 m_waypoint_msg.y = trajectory.points[0].positions[iter * 3 + 1];
                 m_waypoint_msg.z = trajectory.points[0].positions[iter * 3 + 2];
