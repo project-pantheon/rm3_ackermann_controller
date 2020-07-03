@@ -112,6 +112,8 @@ public:
           isActive(false),
           trajectory_iter_(0),
           m_watchdog(ros::Time::now().toSec()),
+          m_trajectory_recived(false),
+          m_waypoint_recived(false),
           m_threshold_time(threshold_time),
           m_threshold_pose(threshold_pose),
           m_threshold_trajectory(threshold_trajectory),
@@ -119,7 +121,8 @@ public:
           m_dynamic_trajectory_enable(dynamic_trajectory_enable),
           m_state(Idle),
           m_lyapunov_enable(lyapunov_enable),
-          m_joint_state_topic(joint_state_topic)
+          m_joint_state_topic(joint_state_topic),
+          trajectoy_distances(30) //fixed
     {
         ros::NodeHandle nh;
 
@@ -171,19 +174,30 @@ private:
 
     void iteration(const ros::TimerEvent &e)
     {
-//        ROS_INFO("isActive: %d",isActive);
-//        ROS_INFO("ros::Time::now().toSec(): %f",ros::Time::now().toSec());
-//        ROS_INFO("m_watchdog: %f",m_watchdog);
-//        ROS_INFO("m_threshold_time: %f", m_threshold_time);
-//        ROS_INFO("time-watch: %f", ros::Time::now().toSec() - m_watchdog);
+        // Disable old messages
+        if (!(ros::Time::now().toSec() - m_watchdog < m_threshold_time)){
+            m_trajectory_recived=false;
+            m_waypoint_recived=false;
+        }
         
-        // Disable the publication of useless command velocity, and publish one time the final lyapunov
-        if (ros::Time::now().toSec() - m_watchdog < m_threshold_time && isActive)
+        // Disable the publication of useless command velocity
+        if ((m_trajectory_recived||m_waypoint_recived) && isActive)
         {
-
             update_values();
 
-            if ((r_p - r_p_des).norm() < m_threshold_pose)
+            //check if the robot is near desired pose (from waypoint or command_pose topic)
+            bool check_threshold=true;
+            if (m_trajectory_recived){
+                check_threshold = trajectoy_distances(trajectory_iter_) < m_threshold_pose;
+            }else if (m_waypoint_recived){
+                check_threshold = (r_p - r_p_des).norm() < m_threshold_pose;
+            }
+
+            std::cout << "(r_p - r_p_des).norm(): " << (r_p - r_p_des).norm() << std::endl;
+
+
+            if (check_threshold)
+            //if ((r_p - r_p_des).norm() < m_threshold_pose)
             {
                 v = 0;
                 phi = 0;
@@ -327,13 +341,24 @@ private:
         return angle;
     }
 
-    void calculateTrajectoryDistances()
+    void updateTrajectoryDistances()
     {
-//        trajectoy_distances = 
-//        Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm()
-//        m_waypoint_msg.x = trajectory.points[0].positions[trajectory_iter_ * 3];
-//        m_waypoint_msg.y = trajectory.points[0].positions[trajectory_iter_ * 3 + 1];
-//        m_waypoint_msg.z = trajectory.points[0].positions[trajectory_iter_ * 3 + 2];
+        double trajectoy_distances_prev = 0;
+        for(int i=0; i<trajectoy_distances.size(); i++){
+            if(i==0){
+                trajectoy_distances(i) = (
+                                            Eigen::Vector2f(m_position_msg.x, m_position_msg.y) - 
+                                            Eigen::Vector2f(trajectory.points[0].positions[i * 3], trajectory.points[0].positions[i * 3 + 1])
+                                         ).norm();
+            }else{
+                trajectoy_distances(i) = trajectoy_distances(i-1) +
+                                         (
+                                           Eigen::Vector2f(trajectory.points[0].positions[(i-1) * 3], trajectory.points[0].positions[(i-1) * 3 + 1]) - 
+                                           Eigen::Vector2f(trajectory.points[0].positions[  i   * 3], trajectory.points[0].positions[  i   * 3 + 1])
+                                         ).norm();
+            }            
+        }
+        std::cout << "trajectoy_distances:\n" << trajectoy_distances << std::endl;
     }   
 
 
@@ -342,35 +367,62 @@ private:
 
         trajectory = *msg;
         trajectory_iter_ = 0;
-        m_waypoint_msg.x = trajectory.points[0].positions[trajectory_iter_ * 3];
-        m_waypoint_msg.y = trajectory.points[0].positions[trajectory_iter_ * 3 + 1];
-        m_waypoint_msg.z = trajectory.points[0].positions[trajectory_iter_ * 3 + 2];
+
+        updateTrajectoryDistances();
 
         int iter = 0;
-        while ((Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < m_threshold_trajectory)
-        {
-            ++iter;
-            m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
-            m_waypoint_msg.y = trajectory.points[0].positions[iter * 3 + 1];
-            m_waypoint_msg.z = trajectory.points[0].positions[iter * 3 + 2];
+        m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
+        m_waypoint_msg.y = trajectory.points[0].positions[iter * 3 + 1];
+        m_waypoint_msg.z = trajectory.points[0].positions[iter * 3 + 2];
+        trajectory_iter_= iter;
+
+        std::cout << "Iter: " << iter << std::endl;
+
+
+        bool waypoint_found=false;
+        for (iter=1; iter<trajectoy_distances.size(); iter++){
+            if (!waypoint_found && // check to set only the first waypoint
+                trajectoy_distances(iter) > m_threshold_pose*(1+m_threshold_trajectory)){
+                m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
+                m_waypoint_msg.y = trajectory.points[0].positions[iter * 3 + 1];
+                m_waypoint_msg.z = trajectory.points[0].positions[iter * 3 + 2];
+                trajectory_iter_ = iter;
+
+                std::cout << "Iter: " << iter << std::endl;
+                waypoint_found=true;
+            }
         }
+        
+
+//        do
+//        {
+//            m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
+//            m_waypoint_msg.y = trajectory.points[0].positions[iter * 3 + 1];
+//            m_waypoint_msg.z = trajectory.points[0].positions[iter * 3 + 2];
+
+//            trajectory_iter_= iter;     
+
+//            std::cout << "Iter: " << iter << std::endl;
+//            iter++;
+//        } while (iter < trajectoy_distances.size() && trajectoy_distances(iter) > m_threshold_pose && m_threshold_trajectory m_threshold_trajectory);
+
+        std::cout << "near_check: " << (Eigen::Vector2f(m_command_pose_recived_msg.pose.pose.position.x, m_command_pose_recived_msg.pose.pose.position.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() << " " << m_threshold_trajectory_near_waypoint << std::endl;
 
         if((Eigen::Vector2f(m_command_pose_recived_msg.pose.pose.position.x, m_command_pose_recived_msg.pose.pose.position.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() < m_threshold_trajectory_near_waypoint){
-
+            std::cout << "near" << std::endl;
             m_waypoint_msg.x = m_command_pose_recived_msg.pose.pose.position.x;
             m_waypoint_msg.y = m_command_pose_recived_msg.pose.pose.position.y;
             m_waypoint_msg.z = get_rpy(m_command_pose_recived_msg.pose.pose.orientation).z;
         }
 
         m_watchdog = ros::Time::now().toSec();
+        m_trajectory_recived = true;
 
-        std::cout << "Waypoint set to: " << iter << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
+        std::cout << "Waypoint set to: " << " " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
 
         std::cout << "Error(x,y,yaw): " << m_waypoint_msg.x-m_position_msg.x << " " << m_waypoint_msg.y-m_position_msg.y << " " << m_waypoint_msg.z-m_position_msg.z << std::endl;
 
-        std::cout << "Error(Norm): " << (Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() << " " << m_threshold_trajectory << std::endl;
-
-        std::cout << "Error-threshold: " << (Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() - m_threshold_trajectory << std::endl;        
+        std::cout << "Error(Norm): " << (Eigen::Vector2f(m_waypoint_msg.x, m_waypoint_msg.y) - Eigen::Vector2f(m_position_msg.x, m_position_msg.y)).norm() << " " << m_threshold_trajectory << std::endl;        
 
     }
 
@@ -405,6 +457,7 @@ private:
     {
         m_waypoint_msg = *msg;
         m_watchdog = ros::Time::now().toSec();
+        m_waypoint_recived = true;
 
         //std::cout << "Waypoint set to: " << m_waypoint_msg.x << " " << m_waypoint_msg.y << " " << m_waypoint_msg.z << std::endl;
     }
@@ -514,6 +567,9 @@ private:
 
     double m_watchdog;
     double m_threshold_time;
+
+    bool m_trajectory_recived;
+    bool m_waypoint_recived;
 
     string m_joint_state_topic;
 
