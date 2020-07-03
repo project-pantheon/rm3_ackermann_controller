@@ -188,7 +188,7 @@ private:
             //check if the robot is near desired pose (from waypoint or command_pose topic)
             bool check_threshold=true;
             if (m_trajectory_recived){
-                check_threshold = trajectoy_distances(trajectory_iter_) < m_threshold_pose;
+                check_threshold = trajectoy_distances(trajectoy_distances.size()-1) < m_threshold_pose;
             }else if (m_waypoint_recived){
                 check_threshold = (r_p - r_p_des).norm() < m_threshold_pose;
             }
@@ -385,7 +385,7 @@ private:
 
         for (iter=1; iter<trajectoy_distances.size(); iter++){
             if (!waypoint_found && // check to set only the first waypoint
-                trajectoy_distances(iter) > traj_dist){
+                trajectoy_distances(iter) > m_threshold_trajectory){
                 m_waypoint_msg.x = trajectory.points[0].positions[iter * 3];
                 m_waypoint_msg.y = trajectory.points[0].positions[iter * 3 + 1];
                 m_waypoint_msg.z = trajectory.points[0].positions[iter * 3 + 2];
