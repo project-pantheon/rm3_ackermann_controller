@@ -193,7 +193,7 @@ private:
                 check_threshold = (r_p - r_p_des).norm() < m_threshold_pose;
             }
 
-            std::cout << "(r_p - r_p_des).norm(): " << (r_p - r_p_des).norm() << std::endl;
+            //std::cout << "(r_p - r_p_des).norm(): " << (r_p - r_p_des).norm() << std::endl;
 
 
             if (check_threshold)
@@ -207,7 +207,7 @@ private:
                 compute_ackermann_to_pose();
             }
 
-            m_cmd_msg.linear.x = fmax(-0.4, fmin(v, 0.4));
+            m_cmd_msg.linear.x = fmax(-0.3, fmin(v, 0.3));
             m_cmd_msg.angular.z = fmax(-1.1, fmin(phi, 1.1));
             m_pub_cmd.publish(m_cmd_msg);
 
@@ -358,7 +358,7 @@ private:
                                          ).norm();
             }            
         }
-        std::cout << "trajectoy_distances:\n" << trajectoy_distances << std::endl;
+        //std::cout << "trajectoy_distances:\n" << trajectoy_distances << std::endl;
     }   
 
 
@@ -437,7 +437,7 @@ private:
 
         m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
         
-        std::cout << "Odometry set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
+        //std::cout << "Odometry set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
         
     }
 
