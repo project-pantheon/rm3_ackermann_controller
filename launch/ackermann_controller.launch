@@ -5,7 +5,7 @@
     <arg name="frequency" default="20.0"/>
     <arg name="cmd_topic" default="/base/base_pad/cmd_vel"/>
     <arg name="joint_state_topic" default="/base/joint_states"/>
-    <arg name="odom_topic" default="/ekf_localization_slam_node/slam_odom_magnetic"/>
+    <arg name="odom_topic" default="/ekf_slam_node/slam_odom"/>
     <arg name="lyapunov_enable" default="true"/>
     <arg name="lyapunov_topic" default="/lyapunov"/>
     <arg name="trajectory_pts_topic" default="/sherpa/trajectory_pts"/>
@@ -13,12 +13,12 @@
     <arg name="yaw_topic" default="/yaw_navigation"/>
     <arg name="threshold_time" default="2.0"/>
     <arg name="threshold_pose" default="0.20"/>
-    <arg name="threshold_trajectory" default="0.30"/>
-    <arg name="threshold_trajectory_near_waypoint" default="0.35"/>
+    <arg name="threshold_trajectory" default="0.20"/>
+    <arg name="threshold_trajectory_near_waypoint" default="0.20"/>
     <arg name="dynamic_trajectory_enable" default="true"/>
 
     <!-- ackermann controller node -->
-    <node name="ackermann_controller" pkg="rm3_ackermann_controller" type="ackermann_controller" output="screen">
+    <node name="ackermann_controller" pkg="rm3_ackermann_controller" type="ackermann_controller">
         <param name="frequency" value="$(arg frequency)"/>
         <param name="cmd_topic" value="$(arg cmd_topic)"/>
         <param name="joint_state_topic" value="$(arg joint_state_topic)"/>

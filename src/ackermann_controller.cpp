@@ -17,6 +17,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <std_srvs/Empty.h>
+#include <std_srvs/SetBool.h>
 
 //filesystem
 #include <unistd.h>
@@ -90,6 +91,7 @@ public:
           m_position_msg(),
           m_serviceSet(),
           m_serviceActivate(),
+          m_serviceMaxVel(),
           r_p(2),
           e_p(2),
           e_p_sat(2),
@@ -109,6 +111,7 @@ public:
           K1(1.f),
           K2(6.f),
           K3(3.f),
+          maxvel(0.3f),
           isActive(false),
           trajectory_iter_(0),
           m_watchdog(ros::Time::now().toSec()),
@@ -155,6 +158,9 @@ public:
 
         m_serviceActivate = nh.advertiseService("activate_controller", &Ackermann_Controller::activateController, this);
 
+        // set max velocity service
+        m_serviceMaxVel = nh.advertiseService("set_max_vel", &Ackermann_Controller::setMaxVel, this);
+
         if (m_lyapunov_enable)
         {
             // lyapunov publisher
@@ -193,7 +199,7 @@ private:
                 check_threshold = (r_p - r_p_des).norm() < m_threshold_pose;
             }
 
-            std::cout << "(r_p - r_p_des).norm(): " << (r_p - r_p_des).norm() << std::endl;
+            //std::cout << "(r_p - r_p_des).norm(): " << (r_p - r_p_des).norm() << std::endl;
 
 
             if (check_threshold)
@@ -207,7 +213,7 @@ private:
                 compute_ackermann_to_pose();
             }
 
-            m_cmd_msg.linear.x = fmax(-0.4, fmin(v, 0.4));
+            m_cmd_msg.linear.x = fmax(-maxvel, fmin(v, maxvel));
             m_cmd_msg.angular.z = fmax(-1.1, fmin(phi, 1.1));
             m_pub_cmd.publish(m_cmd_msg);
 
@@ -358,7 +364,7 @@ private:
                                          ).norm();
             }            
         }
-        std::cout << "trajectoy_distances:\n" << trajectoy_distances << std::endl;
+        //std::cout << "trajectoy_distances:\n" << trajectoy_distances << std::endl;
     }   
 
 
@@ -491,6 +497,21 @@ private:
         return true;
     }
 
+    bool setMaxVel(std_srvs::SetBool::Request &req,
+                    std_srvs::SetBool::Response &res)
+    {
+        if (req.data)
+            maxvel=0.1;
+        else
+            maxvel=0.3;
+        res.message = "Succesfully Called setMaxVel service!";
+        res.success=true;
+        ROS_INFO("\nAckermann_Controller: max_vel%f\n", maxvel);
+
+        return true;
+    }
+
+
 private:
     ros::Subscriber m_sub_odom;
     ros::Subscriber m_sub_trajectory;
@@ -519,6 +540,7 @@ private:
 
     ros::ServiceServer m_serviceSet;
     ros::ServiceServer m_serviceActivate;
+    ros::ServiceServer m_serviceMaxVel;
 
     Eigen::VectorXd r_p;     //x(2);
     Eigen::VectorXd r_p_des; //x_des(2);
@@ -552,6 +574,7 @@ private:
     double K1;
     double K2;
     double K3;
+    double maxvel;
     double V1;
     double V2;
     double V3;
