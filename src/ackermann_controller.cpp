@@ -443,7 +443,7 @@ private:
 
         m_position_msg.z = get_rpy(m_odom_msg.pose.pose.orientation).z;
         
-        //std::cout << "Odometry set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
+        std::cout << "Odometry set to: " << m_position_msg.x << " " << m_position_msg.y << " " << m_position_msg.z << std::endl;
         
     }
 
